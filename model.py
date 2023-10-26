@@ -2,11 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-def update_target(new, target, tau):
-    # Update the frozen target models
-    for param, target_param in zip(new.parameters(), target.parameters()):
-        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
-
 class GaussianFourierProjection(nn.Module):
   """Gaussian random features for encoding time steps."""  
   def __init__(self, embed_dim, scale=30.):
@@ -18,20 +13,9 @@ class GaussianFourierProjection(nn.Module):
     x_proj = x[..., None] * self.W[None, :] * 2 * np.pi
     return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
 
-
-class Dense(nn.Module):
-  """A fully connected layer that reshapes outputs to feature maps."""
-  def __init__(self, input_dim, output_dim):
-    super().__init__()
-    self.dense = nn.Linear(input_dim, output_dim)
-  def forward(self, x):
-    return self.dense(x)
-
-
 def mlp(dims, activation=nn.ReLU, output_activation=None):
     n_dims = len(dims)
     assert n_dims >= 2, 'MLP requires at least two dims (input and output)'
-
     layers = []
     for i in range(n_dims - 2):
         layers.append(nn.Linear(dims[i], dims[i+1]))
@@ -43,43 +27,11 @@ def mlp(dims, activation=nn.ReLU, output_activation=None):
     net.to(dtype=torch.float32)
     return net
 
-
-class TwinQ4(nn.Module):
-    def __init__(self, action_dim, state_dim):
-        super().__init__()
-        dims = [state_dim + action_dim, 256, 256, 256, 256, 1]
-        # dims = [state_dim + action_dim, 256, 256, 1] # TODO
-        self.q1 = mlp(dims)
-        self.q2 = mlp(dims)
-
-    def both(self, action, condition=None):
-        as_ = torch.cat([action, condition], -1) if condition is not None else action
-        return self.q1(as_), self.q2(as_)
-
-    def forward(self, action, condition=None):
-        return torch.min(*self.both(action, condition))
-
 class TwinQ(nn.Module):
-    def __init__(self, action_dim, state_dim):
+    def __init__(self, action_dim, state_dim, layers=2):
         super().__init__()
-        dims = [state_dim + action_dim, 256, 256, 256, 1]
+        dims = [state_dim + action_dim], [256]*layers +[1]
         # dims = [state_dim + action_dim, 256, 256, 1] # TODO
-        self.q1 = mlp(dims)
-        self.q2 = mlp(dims)
-
-    def both(self, action, condition=None):
-        as_ = torch.cat([action, condition], -1) if condition is not None else action
-        return self.q1(as_), self.q2(as_)
-
-    def forward(self, action, condition=None):
-        return torch.min(*self.both(action, condition))
-
-
-class TwinQ2(nn.Module):
-    def __init__(self, action_dim, state_dim):
-        super().__init__()
-        # dims = [state_dim + action_dim, 256, 256, 256, 1]
-        dims = [state_dim + action_dim, 256, 256, 1] # TODO
         self.q1 = mlp(dims)
         self.q2 = mlp(dims)
 
@@ -101,7 +53,7 @@ class ValueFunction(nn.Module):
         return self.v(state)
 
 
-class MapPolicy(nn.Module):
+class Dirac_Policy(nn.Module):
     def __init__(self, action_dim, state_dim, layer=2):
         super().__init__()
         self.net = mlp([state_dim] + [256]*layer + [action_dim], output_activation=nn.Tanh)

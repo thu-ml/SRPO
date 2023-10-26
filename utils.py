@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import d4rl
 
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", default="halfcheetah-medium-expert-v2") # OpenAI gym environment name
@@ -13,11 +12,10 @@ def get_args():
     parser.add_argument("--device", default="cuda", type=str)      
     parser.add_argument("--save_model", default=1, type=int)       
     parser.add_argument('--debug', type=int, default=0)
-    parser.add_argument('--alpha', type=float, default=3.0)       
+    parser.add_argument('--beta', type=float, default=3.0)       
     parser.add_argument('--actor_load_path', type=str, default=None)
     parser.add_argument('--critic_load_path', type=str, default=None)
     parser.add_argument('--policy_batchsize', type=int, default=256)              
-    parser.add_argument('--t', type=float, default=2.0)
     parser.add_argument('--actor_blocks', type=int, default=3)     
     parser.add_argument('--z_noise', type=int, default=1)
     parser.add_argument('--WT', type=str, default="score")
@@ -70,7 +68,6 @@ def pallaral_simple_eval_policy(policy_fn, env_name, seed, eval_episodes=20):
         eval_envs.append(env)
         env.seed(seed + 1001 + i)
         env.buffer_state = env.reset()
-        print(env.buffer_state[:2])
         env.buffer_return = 0.0
     ori_eval_envs = [env for env in eval_envs]
     import time
@@ -88,12 +85,10 @@ def pallaral_simple_eval_policy(policy_fn, env_name, seed, eval_episodes=20):
             if not done:
                 new_eval_envs.append(env)
         eval_envs = new_eval_envs
-    print(time.time() - t)
     for i in range(eval_episodes):
         ori_eval_envs[i].buffer_return = d4rl.get_normalized_score(env_name, ori_eval_envs[i].buffer_return)
     mean = np.mean([ori_eval_envs[i].buffer_return for i in range(eval_episodes)])
     std = np.std([ori_eval_envs[i].buffer_return for i in range(eval_episodes)])
-    print("reward {} +- {}".format(mean,std))
     return mean, std
 
 if __name__ == "__main__":

@@ -1,57 +1,16 @@
-import os
-import gym
-import d4rl
-import tqdm
 import functools
+import os
 
+import d4rl
+import gym
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam
-from torch.utils.data import DataLoader
+import tqdm
+
 import wandb
-
-from utils import get_args, marginal_prob_std
 from dataset import D4RL_dataset
-
-from model import *
-import torch
-import torch.nn as nn
-
-class SRPO(nn.Module):
-    def __init__(self, input_dim, output_dim, marginal_prob_std, args=None):
-        super().__init__()
-        self.diffusion_behavior = ScoreNet_IDQL(input_dim, output_dim, marginal_prob_std, embed_dim=64, args=args)
-        self.diffusion_optimizer = torch.optim.AdamW(self.diffusion_behavior.parameters(), lr=3e-4)
-
-        self.marginal_prob_std = marginal_prob_std
-        self.args = args
-        self.output_dim = output_dim
-        self.step = 0
-    
-    def update_behavior(self, data):
-        self.step += 1
-        all_a = data['a']
-        all_s = data['s']
-
-        # Update diffusion behavior
-        self.diffusion_behavior.train()
-
-
-        random_t = torch.rand(all_a.shape[0], device=all_a.device) * (1. - 1e-3) + 1e-3  
-        z = torch.randn_like(all_a)
-        alpha_t, std = self.marginal_prob_std(random_t)
-        perturbed_x = all_a * alpha_t[:, None] + z * std[:, None]
-        episilon = self.diffusion_behavior(perturbed_x, random_t, all_s)
-        loss = torch.mean(torch.sum((episilon - z)**2, dim=(1,)))
-        self.loss =loss
-
-        self.diffusion_optimizer.zero_grad()
-        loss.backward()  
-        self.diffusion_optimizer.step()
-
-
+from SRPO import SRPO_Behavior
+from utils import get_args, marginal_prob_std
 
 
 def train_behavior(args, score_model, data_loader, start_epoch=0):
@@ -97,7 +56,7 @@ def behavior(args):
     
     marginal_prob_std_fn = functools.partial(marginal_prob_std, device=args.device,beta_1=20.0)
     args.marginal_prob_std_fn = marginal_prob_std_fn
-    score_model= SRPO(input_dim=state_dim+action_dim, output_dim=action_dim, marginal_prob_std=marginal_prob_std_fn, args=args).to(args.device)
+    score_model= SRPO_Behavior(input_dim=state_dim+action_dim, output_dim=action_dim, marginal_prob_std=marginal_prob_std_fn, args=args).to(args.device)
 
     dataset = D4RL_dataset(args)
 
