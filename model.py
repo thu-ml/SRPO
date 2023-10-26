@@ -1,6 +1,8 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+import torch.nn.functional as F
+
 
 class GaussianFourierProjection(nn.Module):
   """Gaussian random features for encoding time steps."""  
@@ -30,7 +32,7 @@ def mlp(dims, activation=nn.ReLU, output_activation=None):
 class TwinQ(nn.Module):
     def __init__(self, action_dim, state_dim, layers=2):
         super().__init__()
-        dims = [state_dim + action_dim], [256]*layers +[1]
+        dims = [state_dim + action_dim] +[256]*layers +[1]
         # dims = [state_dim + action_dim, 256, 256, 1] # TODO
         self.q1 = mlp(dims)
         self.q2 = mlp(dims)

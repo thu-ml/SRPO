@@ -1,17 +1,7 @@
-import torch
-import torch.nn as nn
-import gym
 import d4rl
-import numpy as np
-import functools
-import copy
-import os
-import torch.nn.functional as F
-import tqdm
-from scipy.special import softmax
-import sklearn
-import sklearn.datasets
-from sklearn.utils import shuffle as util_shuffle
+import gym
+import torch
+
 
 def return_range(dataset, max_episode_steps):
     returns, lengths = [], []
@@ -53,10 +43,9 @@ class D4RL_dataset(torch.utils.data.Dataset):
         elif reward_tune == 'antmaze':
             reward = (reward - 0.25) * 2.0
         self.rewards = reward
-        print("dql dataloard loaded")
+        print("data loaded")
         
         self.len = self.states.shape[0]
-        print(self.len, "data loaded")
         self.current_idx = 0
 
     def __getitem__(self, index):

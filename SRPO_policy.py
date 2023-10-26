@@ -57,18 +57,21 @@ def critic(args):
     score_model= SRPO(input_dim=state_dim+action_dim, output_dim=action_dim, marginal_prob_std=marginal_prob_std_fn, args=args).to(args.device)
     score_model.q[0].to(args.device)
 
-    # TODO
-    args.actor_load_path = "path/to/yout/ckpt/file"
+    # args.actor_load_path = "path/to/yout/ckpt/file"
     if args.actor_load_path is not None:
         print("loading actor...")
         ckpt = torch.load(args.actor_load_path, map_location=args.device)
         score_model.load_state_dict({k:v for k,v in ckpt.items() if "diffusion_behavior" in k}, strict=False)
+    else:
+        assert False
 
-    args.critic_load_path = "path/to/yout/ckpt/file"
+    # args.critic_load_path = "path/to/yout/ckpt/file"
     if args.critic_load_path is not None:
         print("loadind critic...")
         ckpt = torch.load(args.critic_load_path, map_location=args.device)
         score_model.q[0].load_state_dict(ckpt)
+    else:
+        assert False
 
     dataset = D4RL_dataset(args)
 
