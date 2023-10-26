@@ -9,31 +9,18 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", default="halfcheetah-medium-expert-v2") # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)             # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--expid", default="default", type=str)    # 
-    parser.add_argument("--device", default="cuda", type=str)      #
-    parser.add_argument("--save_model", default=1, type=int)       #
+    parser.add_argument("--expid", default="default", type=str)    
+    parser.add_argument("--device", default="cuda", type=str)      
+    parser.add_argument("--save_model", default=1, type=int)       
     parser.add_argument('--debug', type=int, default=0)
     parser.add_argument('--alpha', type=float, default=3.0)       
-    parser.add_argument('--beta', type=float, default=20.0)       
-    parser.add_argument('--n_behavior_epochs', type=int, default=600)
     parser.add_argument('--actor_load_path', type=str, default=None)
     parser.add_argument('--critic_load_path', type=str, default=None)
-    parser.add_argument('--diffusion_steps', type=int, default=15)
-    parser.add_argument('--M', type=int, default=16)               #
     parser.add_argument('--policy_batchsize', type=int, default=256)              
-    parser.add_argument('--seed_per_evaluation', type=int, default=10)
-    parser.add_argument('--s', type=float, nargs="*", default=None)# 
-    parser.add_argument('--method', type=str, default="CEP")
-    parser.add_argument('--q_alpha', type=float, default=None)     
-    parser.add_argument('--actor_lr', type=float, default=3e-4)     
     parser.add_argument('--t', type=float, default=2.0)
     parser.add_argument('--actor_blocks', type=int, default=3)     
     parser.add_argument('--z_noise', type=int, default=1)
     parser.add_argument('--WT', type=str, default="score")
-    parser.add_argument('--load_initialize', type=int, default=0)
-    parser.add_argument('--q_type', type=str, default="qt")
-    parser.add_argument('--tau', type=float, default=None)
-    parser.add_argument('--td3_noise', type=int, default=0)
     parser.add_argument('--q_layer', type=int, default=2)
     parser.add_argument('--n_policy_epochs', type=int, default=100)
     parser.add_argument('--policy_layer', type=int, default=2)
@@ -44,25 +31,6 @@ def get_args():
     if args.debug:
         args.actor_epoch =1
         args.critic_epoch =1
-        args.env = "antmaze-medium-play-v2"
-    if args.q_alpha is None:
-        args.q_alpha = args.alpha
-    print(args)
-    return args
-
-def bandit_get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--env", default="8gaussians") # OpenAI gym environment name
-    parser.add_argument("--seed", default=0, type=int)             # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--expid", default="default", type=str)    # 
-    parser.add_argument("--device", default="cuda", type=str)      #
-    parser.add_argument("--save_model", default=1, type=int)       #
-    parser.add_argument('--debug', type=int, default=0)
-    parser.add_argument('--alpha', type=float, default=3.0)        
-    parser.add_argument('--diffusion_steps', type=int, default=15)
-    parser.add_argument('--method', type=str, default="CEP")
-    print("**************************")
-    args = parser.parse_known_args()[0]
     print(args)
     return args
 
@@ -130,4 +98,3 @@ def pallaral_simple_eval_policy(policy_fn, env_name, seed, eval_episodes=20):
 
 if __name__ == "__main__":
     args = get_args()
-    print(args.s)

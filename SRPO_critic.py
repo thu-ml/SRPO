@@ -21,108 +21,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class MLPResNetBlock(nn.Module):
-    """MLPResNet block."""
-    def __init__(self, features, act, dropout_rate=None, use_layer_norm=False):
-        super(MLPResNetBlock, self).__init__()
-        self.features = features
-        self.act = act
-        self.dropout_rate = dropout_rate
-        self.use_layer_norm = use_layer_norm
 
-        if self.use_layer_norm:
-            self.layer_norm = nn.LayerNorm(features)
 
-        self.fc1 = nn.Linear(features, features * 4)
-        self.fc2 = nn.Linear(features * 4, features)
-        self.residual = nn.Linear(features, features)
 
-        self.dropout = nn.Dropout(dropout_rate) if dropout_rate is not None and dropout_rate > 0.0 else None
 
-    def forward(self, x, training=False):
-        residual = x
-        if self.dropout is not None:
-            x = self.dropout(x)
-
-        if self.use_layer_norm:
-            x = self.layer_norm(x)
-
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.fc2(x)
-
-        if residual.shape != x.shape:
-            residual = self.residual(residual)
-
-        return residual + x
-
-class MLPResNet(nn.Module):
-    def __init__(self, num_blocks, input_dim, out_dim, dropout_rate=None, use_layer_norm=False, hidden_dim=256, activations=F.relu):
-        super(MLPResNet, self).__init__()
-        self.num_blocks = num_blocks
-        self.out_dim = out_dim
-        self.dropout_rate = dropout_rate
-        self.use_layer_norm = use_layer_norm
-        self.hidden_dim = hidden_dim
-        self.activations = activations
-
-        self.fc = nn.Linear(input_dim+128, self.hidden_dim)
-
-        self.blocks = nn.ModuleList([MLPResNetBlock(self.hidden_dim, self.activations, self.dropout_rate, self.use_layer_norm)
-                                     for _ in range(self.num_blocks)])
-
-        self.out_fc = nn.Linear(self.hidden_dim, self.out_dim)
-
-    def forward(self, x, training=False):
-        x = self.fc(x)
-
-        for block in self.blocks:
-            x = block(x, training=training)
-
-        x = self.activations(x)
-        x = self.out_fc(x)
-
-        return x
-    
-    
-class ScoreNet_IDQL(nn.Module):
-    def __init__(self, input_dim, output_dim, marginal_prob_std, embed_dim=64, args=None):
+class SRPO(nn.Module):
+    def __init__(self, input_dim, output_dim, marginal_prob_std, args=None):
         super().__init__()
-        self.output_dim = output_dim
-        self.embed = nn.Sequential(GaussianFourierProjection(embed_dim=embed_dim))
-        self.device=args.device
-        self.marginal_prob_std = marginal_prob_std
-        self.args=args
-        self.main = MLPResNet(args.actor_blocks, input_dim, output_dim, dropout_rate=0.1, use_layer_norm=True, hidden_dim=256, activations=nn.Mish())
-        self.cond_model = mlp([64, 128, 128], output_activation=None, activation=nn.Mish)
-
-        # The swish activation function
-        # self.act = lambda x: x * torch.sigmoid(x)
-        
-    def forward(self, x, t, condition):
-        embed = self.cond_model(self.embed(t))
-        all = torch.cat([x, condition, embed], dim=-1)
-        h = self.main(all)
-        return h
-
-
-
-class MapPolicy(nn.Module):
-    def __init__(self, action_dim, state_dim):
-        super().__init__()
-        self.net = mlp([state_dim, 256, 256, action_dim], output_activation=nn.Tanh)
-
-    def forward(self, state):
-        return self.net(state)
-    def select_actions(self, state):
-        return self(state)
-    
-
-
-class DIQL(nn.Module):
-    def __init__(self, input_dim, output_dim, marginal_prob_std, embed_dim=32, args=None):
-        super().__init__()
-        self.alphas = []
         self.diffusion_behavior = ScoreNet_IDQL(input_dim, output_dim, marginal_prob_std, embed_dim=64, args=args)
         self.diffusion_optimizer = torch.optim.AdamW(self.diffusion_behavior.parameters(), lr=3e-4)
         self.deter_policy = MapPolicy(output_dim, input_dim-output_dim).to("cuda")
@@ -135,9 +40,8 @@ class DIQL(nn.Module):
         self.step = 0
         self.q = []
         self.q.append(Critic(adim=output_dim, sdim=input_dim-output_dim, args=args))
-        print(10.0 if "maze" in self.args.env else 3.0)
     
-    def update(self, data):
+    def update_iql(self, data):
         all_a = data['a']
         all_s = data['s']
         s = all_s[:256]
@@ -159,28 +63,15 @@ class DIQL(nn.Module):
         self.deter_policy_lr_scheduler.step()
         self.policy_loss = policy_loss
 
-class ValueFunction(nn.Module):
-    def __init__(self, state_dim):
-        super().__init__()
-        dims = [state_dim, 256, 256, 1]
-        self.v = mlp(dims)
-
-    def forward(self, state):
-        return self.v(state)
-
 
 def asymmetric_l2_loss(u, tau):
     return torch.mean(torch.abs(tau - (u < 0).float()) * u**2)
 
 
-
-
 class Critic(nn.Module):
     def __init__(self, adim, sdim, args) -> None:
         super().__init__()
-        # is sdim is 0  means unconditional guidance
         assert sdim > 0
-        # only apply to conditional sampling here
         if args.q_layer == 2:
             self.q0 = TwinQ2(adim, sdim).to(args.device)
         elif args.q_layer == 3:
@@ -198,10 +89,7 @@ class Critic(nn.Module):
         self.discount = 0.99
         self.args = args
         self.alpha = args.alpha
-        if args.tau is None:
-            self.tau = 0.9 if "maze" in args.env else 0.7
-        else:
-            assert False
+        self.tau = 0.9 if "maze" in args.env else 0.7
         print(self.tau)
 
     def update_q0(self, data):
@@ -224,10 +112,7 @@ class Critic(nn.Module):
         
         # Update Q function
         targets = r + (1. - d.float()) * self.discount * next_v.detach()
-        if "ablate_action_noise" in args.expid:
-            qs = self.q0.both(a + (torch.randn_like(a) * 0.2).clamp(-0.5, 0.5), s) 
-        else:
-            qs = self.q0.both(a, s)
+        qs = self.q0.both(a, s)
         self.v = v.mean()
         q_loss = sum(F.mse_loss(q, targets) for q in qs) / len(qs)
         self.q_optimizer.zero_grad(set_to_none=True)
@@ -237,11 +122,8 @@ class Critic(nn.Module):
         self.q_loss = q_loss
         self.q = target_q.mean()
         self.v = next_v.mean()
-        
         # Update target
         update_target(self.q0, self.q0_target, 0.005)
-
-
 
 def train_critic(args, score_model, data_loader, start_epoch=0):
     n_epochs = 150
@@ -255,7 +137,7 @@ def train_critic(args, score_model, data_loader, start_epoch=0):
         num_items = 0
         for _ in range(10000):
             data = data_loader.sample(256)
-            loss2 = score_model.update(data)
+            loss2 = score_model.update_iql(data)
             avg_loss += 0.0
             num_items += 1
         tqdm_epoch.set_description('Average Loss: {:5f}'.format(avg_loss / num_items))
@@ -271,15 +153,15 @@ def train_critic(args, score_model, data_loader, start_epoch=0):
             args.run.log({"loss/policy_loss": score_model.policy_loss.detach().cpu().numpy()}, step=epoch+1)
             args.run.log({"info/lr": score_model.deter_policy_optimizer.state_dict()['param_groups'][0]['lr']}, step=epoch+1)
         if args.save_model and ((epoch % save_interval == (save_interval - 1)) or epoch==0):
-            torch.save(score_model.q[0].state_dict(), os.path.join("./DIQL_model_factory", str(args.expid), "critic_ckpt{}.pth".format(epoch+1)))
+            torch.save(score_model.q[0].state_dict(), os.path.join("./SRPO_model_factory", str(args.expid), "critic_ckpt{}.pth".format(epoch+1)))
 
 def critic(args):
-    for dir in ["./DIQL_model_factory"]:
+    for dir in ["./SRPO_model_factory"]:
         if not os.path.exists(dir):
             os.makedirs(dir)
-    if not os.path.exists(os.path.join("./DIQL_model_factory", str(args.expid))):
-        os.makedirs(os.path.join("./DIQL_model_factory", str(args.expid)))
-    run = wandb.init(project="DIQL_model_factory", name=str(args.expid))
+    if not os.path.exists(os.path.join("./SRPO_model_factory", str(args.expid))):
+        os.makedirs(os.path.join("./SRPO_model_factory", str(args.expid)))
+    run = wandb.init(project="SRPO_model_factory", name=str(args.expid))
     wandb.config.update(args)
     
     env = gym.make(args.env)
@@ -291,10 +173,10 @@ def critic(args):
     action_dim = env.action_space.shape[0]
     args.run = run
     
-    marginal_prob_std_fn = functools.partial(marginal_prob_std, device=args.device,beta_1=args.beta)
+    marginal_prob_std_fn = functools.partial(marginal_prob_std, device=args.device,beta_1=20.0)
     args.marginal_prob_std_fn = marginal_prob_std_fn
-    # initial a new IQL class
-    score_model= DIQL(input_dim=state_dim+action_dim, output_dim=action_dim, marginal_prob_std=marginal_prob_std_fn, args=args).to(args.device)
+
+    score_model= SRPO(input_dim=state_dim+action_dim, output_dim=action_dim, marginal_prob_std=marginal_prob_std_fn, args=args).to(args.device)
     score_model.q[0].to(args.device)
 
     dataset = D4RL_dataset(args)
