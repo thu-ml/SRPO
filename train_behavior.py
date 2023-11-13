@@ -26,7 +26,7 @@ def train_behavior(args, score_model, data_loader, start_epoch=0):
         for _ in range(10000):
             data = data_loader.sample(2048)
             loss2 = score_model.update_behavior(data)
-            avg_loss += 0.0
+            avg_loss += score_model.loss.detach().cpu().numpy()
             num_items += 1
         tqdm_epoch.set_description('Average Loss: {:5f}'.format(avg_loss / num_items))
         
