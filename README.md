@@ -10,7 +10,7 @@ Huayu Chen, Cheng Lu, Zhengyi Wang, Hang Su, Jun Zhu
 Installations of [PyTorch](https://pytorch.org/), [MuJoCo](https://github.com/deepmind/mujoco), and [D4RL](https://github.com/Farama-Foundation/D4RL) are needed.
 
 ### Running
-Download the pretrained behavior and critic checkpoints from TBD-url and store them under `./SRPO_model_factory/`.
+Download the pretrained behavior and critic checkpoints from [here](https://drive.google.com/drive/folders/1N0qC6lakTtwLa7oE0B_9jHfwCj65Irxx?usp=drive_link) and store them under `./SRPO_model_factory/`.
 
 You can also choose to pretrain the behavior and the critic model yourself. Respectively run
 
